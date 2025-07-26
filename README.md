@@ -9,7 +9,7 @@ A simple interactive AI-agent built with [Koog](https://github.com/JetBrains/koo
     - Creating a study plan
     - Listing subtopics
     - Diving deeper into subtopics on request
-- Topic navigation — `In Progress`
+- Topic navigation
 
 ## Setup
 

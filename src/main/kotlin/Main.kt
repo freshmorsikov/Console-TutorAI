@@ -1,33 +1,42 @@
 package com.github.freshmorsikov
 
 import ai.koog.agents.core.agent.AIAgent
-import ai.koog.agents.core.dsl.builder.AIAgentNodeDelegate
-import ai.koog.agents.core.dsl.builder.AIAgentSubgraphBuilderBase
 import ai.koog.agents.core.dsl.builder.forwardTo
 import ai.koog.agents.core.dsl.builder.strategy
 import ai.koog.agents.core.dsl.extension.nodeLLMRequest
 import ai.koog.agents.core.tools.ToolRegistry
+import ai.koog.agents.ext.tool.AskUser
 import ai.koog.agents.features.eventHandler.feature.EventHandler
 import ai.koog.agents.features.eventHandler.feature.EventHandlerConfig
 import ai.koog.prompt.executor.clients.openai.OpenAIModels
 import ai.koog.prompt.executor.llms.all.simpleOpenAIExecutor
-import ai.koog.prompt.message.Message
+import com.github.freshmorsikov.node.nodeAskUser
+import com.github.freshmorsikov.node.nodeGoBack
+import com.github.freshmorsikov.node.nodeSayToUser
 import kotlinx.coroutines.runBlocking
+
+private const val BACK_COMMAND = "back"
+private const val STOP_COMMAND = "stop"
 
 fun main(): Unit = runBlocking {
     val apiKey = System.getenv("OPENAI_API_KEY")
     val eventHandlerConfig: EventHandlerConfig.() -> Unit = {}
-    val toolRegistry = ToolRegistry {}
-    val loopingStrategy = strategy(name = "looping") {
+    val toolRegistry = ToolRegistry {
+        tool(AskUser)
+    }
+    val loopingStrategy = strategy(name = "Learning") {
         val nodeAskUser by nodeAskUser()
         val nodeCallLLM by nodeLLMRequest(allowToolCalls = false)
         val nodeSayToUser by nodeSayToUser()
+        val nodeGoBack by nodeGoBack()
 
         edge(nodeStart forwardTo nodeCallLLM)
-        edge(nodeCallLLM forwardTo nodeSayToUser)
+        edge(nodeCallLLM forwardTo nodeSayToUser transformed { it.content })
         edge(nodeSayToUser forwardTo nodeAskUser)
-        edge(nodeAskUser forwardTo nodeCallLLM onCondition { !it.contains("stop") })
-        edge(nodeAskUser forwardTo nodeFinish onCondition { it == "stop".trim() })
+        edge(nodeAskUser forwardTo nodeCallLLM onCondition { shouldCallLLM(userMessage = it) })
+        edge(nodeAskUser forwardTo nodeGoBack onCondition { shouldGoBack(userMessage = it) })
+        edge(nodeGoBack forwardTo nodeSayToUser)
+        edge(nodeAskUser forwardTo nodeFinish onCondition { shouldStop(userMessage = it) })
     }
     val agent = AIAgent(
         executor = simpleOpenAIExecutor(apiKey),
@@ -58,12 +67,23 @@ fun main(): Unit = runBlocking {
     agent.run(agentInput = readln())
 }
 
-fun AIAgentSubgraphBuilderBase<*, *>.nodeSayToUser(): AIAgentNodeDelegate<Message.Response, Unit> =
-    node("sayToUser") { input ->
-        println(input.content)
-    }
+private fun shouldCallLLM(userMessage: String): Boolean {
+    val messageNumbers = userMessage.filter { it.isDigit() }
+    return messageNumbers.isNotEmpty()
+}
 
-fun AIAgentSubgraphBuilderBase<*, *>.nodeAskUser(): AIAgentNodeDelegate<Unit, String> =
-    node("askUser") {
-        readln()
-    }
+private fun shouldGoBack(userMessage: String): Boolean {
+    return userMessage.trim()
+        .equals(
+            other = BACK_COMMAND,
+            ignoreCase = true
+        )
+}
+
+private fun shouldStop(userMessage: String): Boolean {
+    return userMessage.trim()
+        .equals(
+            other = STOP_COMMAND,
+            ignoreCase = true
+        )
+}
