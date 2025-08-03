@@ -15,7 +15,7 @@ A simple interactive AI-agent built with [Koog](https://github.com/JetBrains/koo
 
 1. Clone the repository:
     ```
-    git clone https://github.com/freshmorsikov/Tutor-AI-agent.git
+    git clone https://github.com/freshmorsikov/Console-TutorAI.git
     ```
 2. Set `OPENAI_API_KEY` in your _**Run Configuration**_ → _**Environment Variables**_
 3. Run the `main()` function
